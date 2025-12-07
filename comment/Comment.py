@@ -148,7 +148,16 @@ class Comment:
 
         if (not 'next_min_id' in response): return True 
 
-        self.__min_id = response['next_min_id'] 
+        self.__min_id = response['next_min_id']
+
+        # Simpan checkpoint ke file
+        try:
+            with open('cursor_checkpoint.txt', 'w') as f:
+                f.write(self.__min_id)
+            # Opsional: Print info kecil
+            # print(f"[DEBUG] Checkpoint tersimpan.") 
+        except Exception as e:
+            print(f"[WARN] Gagal menyimpan checkpoint: {e}")
 
         
     def excecute(self, post_id: str):
