@@ -13,6 +13,13 @@ class Comment:
     def __init__(self, cookie: str = None) -> None:
         if(not cookie): return logging.error('cookie required !')
 
+        # Inisialisasi Batch
+        self.batch_size = 100          
+        self.file_counter = 1          
+        self.current_batch_data = []   
+        self.current_post_id = None
+
+        # Inisialisasi lainnya
         self.__min_id: str =  None
         
         self.__result: dict = {}

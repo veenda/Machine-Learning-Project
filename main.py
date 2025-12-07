@@ -3,7 +3,7 @@ import re
 import csv  # Import library csv
 from argparse import ArgumentParser
 
-from comment import Comment
+from comment.Comment import Comment
 from comment.helpers import logging
 
 if(__name__ == '__main__'):
