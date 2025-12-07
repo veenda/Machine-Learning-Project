@@ -168,7 +168,7 @@ class Comment:
 
         
     def excecute(self, post_id: str):
-        # 1. Mendapatkan Media ID
+        # 1. Mendapatkan Post ID
         self.__media_id = self.__dencode_media_id(post_id)
         self.current_post_id = self.__media_id  # Set current_post_id untuk penamaan file
         
@@ -176,8 +176,8 @@ class Comment:
         # File akan bernama: checkpoint_<media_id>.txt
         self.checkpoint_file = f"checkpoint_{self.__media_id}.txt"
 
-        # 3. Logika pembacaan checkpoint unik
-        if os.path.exists(self.__checkpoint_filename):
+        # 3. Baca checkpoint unik
+        if os.path.exists(self.checkpoint_filename):
             # Pakai yang unik
             try:
                 with open(self.__checkpoint_filename, 'r') as f:
@@ -200,7 +200,7 @@ class Comment:
                     
                 print(f"[INFO] Berhasil migrasi! Melanjutkan dari: {self.__min_id}")
             except: pass
-            
+
         while(True):
             try:
                 res_obj = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/', params=self.__build_params())
