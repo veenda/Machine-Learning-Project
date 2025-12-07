@@ -21,6 +21,17 @@ class Comment:
 
         # Inisialisasi lainnya
         self.__min_id: str =  None
+
+        # Cek apakah ada file checkpoint dari sesi sebelumnya
+        if os.path.exists('cursor_checkpoint.txt'):
+            try:
+                with open('cursor_checkpoint.txt', 'r') as f:
+                    saved_cursor = f.read().strip()
+                    if saved_cursor:
+                        self.__min_id = saved_cursor
+                        print(f"[INFO] Ditemukan Checkpoint! Melanjutkan dari cursor: {self.__min_id}")
+            except Exception as e:
+                print(f"[WARN] Gagal membaca checkpoint: {e}")
         
         self.__result: dict = {}
         self.__result["username"]: str = None
