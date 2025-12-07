@@ -159,7 +159,7 @@ class Comment:
 
         # Simpan checkpoint ke file unik
         try:
-            with open('cursor_checkpoint.txt', 'w') as f:
+            with open('self.checkpoint_file.txt', 'w') as f:
                 f.write(self.__min_id)
             # Opsional: Print info kecil
             # print(f"[DEBUG] Checkpoint tersimpan.") 
@@ -177,14 +177,12 @@ class Comment:
         self.checkpoint_file = f"checkpoint_{self.__media_id}.txt"
 
         # 3. Baca checkpoint unik
-        if os.path.exists(self.checkpoint_filename):
-            # Pakai yang unik
+        if os.path.exists(self.checkpoint_file):
             try:
-                with open(self.__checkpoint_filename, 'r') as f:
+                with open(self.checkpoint_file, 'r') as f:
                     self.__min_id = f.read().strip()
-                    print(f"[INFO] Resume {post_id}! Melanjutkan dari cursor: {self.__min_id}")
-            except:
-                pass
+                    print(f"[INFO] Resume {post_id} dari checkpoint unik: {self.__min_id}")
+            except: pass
 
         # Jika tidak ada, cek apakah ada checkpoint 'jadul' (kode scraping sesepuh)
         elif os.path.exists('cursor_checkpoint.txt'):
@@ -193,23 +191,23 @@ class Comment:
                 with open('cursor_checkpoint.txt', 'r') as f:
                     self.__min_id = f.read().strip()
                 
-                # PENTING: Rename file lama ke nama baru agar tidak dibaca proses lain
-                # Kita copy isinya ke file baru, lalu nanti file lama bisa dihapus manual atau dibiarkan
+                # Migrasi: Simpan ke nama file baru
                 with open(self.checkpoint_file, 'w') as f:
                     f.write(self.__min_id)
                     
                 print(f"[INFO] Berhasil migrasi! Melanjutkan dari: {self.__min_id}")
             except: pass
 
+        # Loop request
         while(True):
             try:
-                res_obj = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/', params=self.__build_params())
+                response: Response = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/', params=self.__build_params())
 
-                if(res_obj.status_code != 200): 
-                    logging.error(f"Gagal mengambil komentar utama. Status: {res_obj.status_code}")
+                if(response.status_code != 200): 
+                    logging.error(f"Gagal mengambil komentar utama. Status: {response.status_code}")
                     return self.__result # Kembalikan apa yang sudah didapat
 
-                data: dict = res_obj.json() 
+                data: dict = response.json() 
 
                 if(not self.__result['comments']): 
                     logging.info('Berhasil mengambil metadata post.')
@@ -229,6 +227,10 @@ class Comment:
             except Exception as e:
                 logging.error(f"Error pada loop utama excecute: {e}")
                 break
+            
+            # simpan sisa data di akhir
+            if len(self.current_batch_data) > 0:
+                self.__save_batch_to_csv()
         
         return self.__result
     
