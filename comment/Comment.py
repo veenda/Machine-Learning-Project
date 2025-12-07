@@ -178,6 +178,7 @@ class Comment:
 
         # 3. Logika pembacaan checkpoint unik
         if os.path.exists(self.__checkpoint_filename):
+            # Pakai yang unik
             try:
                 with open(self.__checkpoint_filename, 'r') as f:
                     self.__min_id = f.read().strip()
@@ -185,6 +186,21 @@ class Comment:
             except:
                 pass
 
+        # Jika tidak ada, cek apakah ada checkpoint 'jadul' (kode scraping sesepuh)
+        elif os.path.exists('cursor_checkpoint.txt'):
+            try:
+                print(f"[INFO] Mendeteksi checkpoint lama 'cursor_checkpoint.txt'. Sedang migrasi...")
+                with open('cursor_checkpoint.txt', 'r') as f:
+                    self.__min_id = f.read().strip()
+                
+                # PENTING: Rename file lama ke nama baru agar tidak dibaca proses lain
+                # Kita copy isinya ke file baru, lalu nanti file lama bisa dihapus manual atau dibiarkan
+                with open(self.checkpoint_file, 'w') as f:
+                    f.write(self.__min_id)
+                    
+                print(f"[INFO] Berhasil migrasi! Melanjutkan dari: {self.__min_id}")
+            except: pass
+            
         while(True):
             try:
                 res_obj = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/', params=self.__build_params())
