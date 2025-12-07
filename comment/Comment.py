@@ -1,4 +1,5 @@
 import os
+import csv
 import time
 
 from requests import Session, Response
@@ -102,23 +103,28 @@ class Comment:
             return False
 
         for comment in response['comments']:
-            try:
-                # Print preview komentar agar tahu proses berjalan
-                logging.info(f"Processing comment by {comment['user']['username']}")
-                
-                self.__result['comments'].append({
-                    "username": comment["user"]["username"],
-                    "full_name": comment["user"]["full_name"],
-                    "comment": comment["text"],
-                    "create_time": self.__format_date(comment["created_at"]),
-                    "avatar": comment["user"]["profile_pic_url"],
-                    "total_like": comment["comment_like_count"],
-                    "total_reply": comment["child_comment_count"],
-                    "replies": self.__get_reply_comment(comment['pk']) if comment.get('child_comment_count', 0) > 0 else [] 
-                })
-            except Exception as e:
-                logging.error(f"Error processing a comment: {e}")
-                continue
+            logging.info(comment['text'])
+
+            comment_obj = {
+                "username": comment["user"]["username"],
+                "full_name": comment["user"]["full_name"],
+                "comment": comment["text"],
+                "create_time": self.__format_date(comment["created_at"]),
+                "avatar": comment["user"]["profile_pic_url"],
+                "total_like": comment["comment_like_count"],
+                "total_reply": comment["child_comment_count"],
+                # Catatan: replies berbentuk list, di CSV akan tertulis sebagai string list
+                "replies": self.__get_reply_comment(comment['pk']) if comment['child_comment_count'] else [] 
+            }
+
+            self.__result['comments'].append(comment_obj)
+            
+            # Logika Batch Insert
+            self.current_batch_data.append(comment_obj) # Masukkan ke list batch
+
+            # Cek jika sudah mencapai 100
+            if len(self.current_batch_data) == self.batch_size:
+                self.__save_batch_to_csv()
             
             sleep(1)
 
@@ -159,6 +165,37 @@ class Comment:
                 break
         
         return self.__result
+    
+    # Penyimpan CSV
+    def __save_batch_to_csv(self):
+        if not self.current_batch_data:
+            return
+
+        # Pastikan folder 'data' ada (sesuai output default di main.py)
+        if not os.path.exists('data'):
+            os.makedirs('data')
+
+        # Nama file: data/IDPOSTINGAN_1.csv, data/IDPOSTINGAN_2.csv, dst
+        filename = f"data/{self.current_post_id}_{self.file_counter}.csv"
+        
+        # Ambil keys dari data pertama untuk header
+        keys = self.current_batch_data[0].keys()
+
+        try:
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+                writer.writerows(self.current_batch_data)
+            
+            print(f"[INFO] Berhasil menyimpan batch ke-{self.file_counter} ke {filename}")
+            
+            # Reset batch dan naikkan counter
+            self.file_counter += 1
+            self.current_batch_data = []
+            
+        except Exception as e:
+            print(f"[ERROR] Gagal menyimpan batch CSV: {e}")
+    # ---------------------------------------
 
 
 if(__name__ == '__main__'):
