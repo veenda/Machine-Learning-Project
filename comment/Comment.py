@@ -13,6 +13,10 @@ class Comment:
     def __init__(self, cookie: str = None) -> None:
         if(not cookie): return logging.error('cookie required !')
 
+        # Inisialisasi checkpoint multi-URL multi-cookie
+        self.__media_id: str = None
+        self.__checkpoint_filename: str = None # variabel baru untuk nama file unik
+
         # Inisialisasi Batch
         self.batch_size = 100          
         self.file_counter = 1          
@@ -157,11 +161,28 @@ class Comment:
             # Opsional: Print info kecil
             # print(f"[DEBUG] Checkpoint tersimpan.") 
         except Exception as e:
-            print(f"[WARN] Gagal menyimpan checkpoint: {e}")
+            logging.warning(f"[WARN] Gagal menyimpan checkpoint {self.__checkpoint_filename}: {e}")
 
         
     def excecute(self, post_id: str):
+        # 1. Mendapatkan Media ID
         self.__media_id = self.__dencode_media_id(post_id)
+        self.current_post_id = self.__media_id  # Set current_post_id untuk penamaan file
+        
+        # 2. Didefinisikan nama file checkpoint unik
+        self.__checkpoint_filename = f'checkpoint_{self.__media_id}.txt'
+
+        # 3. Logika pembacaan checkpoint unik
+        if os.path.exists(self.__checkpoint_filename):
+            try:
+                with open(self.__checkpoint_filename, 'r') as f:
+                    saved_cursor = f.read().strip()
+                    if saved_cursor:
+                        self.__min_id = saved_cursor
+                        logging.info(f"[INFO] Melanjutkan {self.__media_id} dari checkpoint: {self.__min_id}")
+            except Exception as e:
+                logging.warning(f"[WARN] Gagal membaca checkpoint {self.__checkpoint_filename}: {e}")
+
         while(True):
             try:
                 res_obj = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/', params=self.__build_params())
