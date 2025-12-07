@@ -1,12 +1,11 @@
 import os
+import time
 
 from requests import Session, Response
 from json import dumps
 from dotenv import load_dotenv
 from time import sleep
 from datetime import datetime
-from time import time
-
 from comment.helpers import logging
 
 class Comment:
@@ -56,9 +55,27 @@ class Comment:
     def __get_reply_comment(self, comment_id: str):
         min_id: str = ''
         child_comments: list = []
-
+        
+        # Loop untuk mengambil semua halaman reply
         while True:
-            response: Response = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/{comment_id}/child_comments/?min_id={min_id}').json()
+            url = f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/{comment_id}/child_comments/?min_id={min_id}'
+            
+            try:
+                res_obj = self.__requests.get(url)
+                
+                # Cek jika status bukan 200 (OK)
+                if res_obj.status_code != 200:
+                    logging.warning(f"Gagal ambil reply {comment_id}, status: {res_obj.status_code}. Lewati.")
+                    break
+
+                response = res_obj.json()
+            except Exception as e:
+                logging.error(f"Error parsing JSON pada reply {comment_id}: {e}")
+                break
+
+            # Jika data child_comments tidak ada, berhenti
+            if 'child_comments' not in response:
+                break
 
             child_comments.extend([
                 {
@@ -71,27 +88,37 @@ class Comment:
                 } for comment in response['child_comments']
             ])
 
-            if(not response['has_more_head_child_comments']): break
+            if(not response.get('has_more_head_child_comments')): break
             
-            min_id: str = response['next_min_child_cursor'] 
+            min_id: str = response.get('next_min_child_cursor', '')
 
-            sleep(1)
+            # Tambah delay sedikit agar aman dari rate limit
+            sleep(2)
+            
         return child_comments
 
     def __filter_comments(self, response: dict) -> None:
-        for comment in response['comments']:
-            logging.info(comment['text'])
+        if 'comments' not in response:
+            return False
 
-            self.__result['comments'].append({
-                "username": comment["user"]["username"],
-                "full_name": comment["user"]["full_name"],
-                "comment": comment["text"],
-                "create_time": self.__format_date(comment["created_at"]),
-                "avatar": comment["user"]["profile_pic_url"],
-                "total_like": comment["comment_like_count"],
-                "total_reply": comment["child_comment_count"],
-                "replies": self.__get_reply_comment(comment['pk']) if comment['child_comment_count'] else [] 
-            })
+        for comment in response['comments']:
+            try:
+                # Print preview komentar agar tahu proses berjalan
+                logging.info(f"Processing comment by {comment['user']['username']}")
+                
+                self.__result['comments'].append({
+                    "username": comment["user"]["username"],
+                    "full_name": comment["user"]["full_name"],
+                    "comment": comment["text"],
+                    "create_time": self.__format_date(comment["created_at"]),
+                    "avatar": comment["user"]["profile_pic_url"],
+                    "total_like": comment["comment_like_count"],
+                    "total_reply": comment["child_comment_count"],
+                    "replies": self.__get_reply_comment(comment['pk']) if comment.get('child_comment_count', 0) > 0 else [] 
+                })
+            except Exception as e:
+                logging.error(f"Error processing a comment: {e}")
+                continue
             
             sleep(1)
 
@@ -103,34 +130,39 @@ class Comment:
     def excecute(self, post_id: str):
         self.__media_id = self.__dencode_media_id(post_id)
         while(True):
-            response: Response = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/', params=self.__build_params())
+            try:
+                res_obj = self.__requests.get(f'https://www.instagram.com/api/v1/media/{self.__media_id}/comments/', params=self.__build_params())
 
-            if(response.status_code != 200): return
+                if(res_obj.status_code != 200): 
+                    logging.error(f"Gagal mengambil komentar utama. Status: {res_obj.status_code}")
+                    return self.__result # Kembalikan apa yang sudah didapat
 
-            data: dict = response.json() 
+                data: dict = res_obj.json() 
 
-            if(not self.__result['comments']): 
-                print('ok')
-                self.__result["username"]: str = data["caption"]["user"]["username"]
-                self.__result["full_name"]: str = data["caption"]["user"]["full_name"]
-                self.__result["caption"]: str = data["caption"]["text"]
-                self.__result["date_now"]: str = self.__format_date(round(time() * 1000))
-                self.__result["create_at"]: str = self.__format_date(data["caption"]["created_at"])
-                self.__result["post_url"]: str = f"https://instagram.com/p/{post_id}"
+                if(not self.__result['comments']): 
+                    logging.info('Berhasil mengambil metadata post.')
+                    # Handle jika caption kosong atau struktur beda
+                    caption_node = data.get("caption")
+                    if caption_node:
+                        self.__result["username"]: str = caption_node["user"]["username"]
+                        self.__result["full_name"]: str = caption_node["user"]["full_name"]
+                        self.__result["caption"]: str = caption_node["text"]
+                        self.__result["create_at"]: str = self.__format_date(caption_node["created_at"])
+                    
+                    self.__result["date_now"]: str = self.__format_date(round(time.time() * 1000))
+                    self.__result["post_url"]: str = f"https://instagram.com/p/{post_id}"
 
-            if(self.__filter_comments(data)): break
+                if(self.__filter_comments(data)): break
+            
+            except Exception as e:
+                logging.error(f"Error pada loop utama excecute: {e}")
+                break
         
         return self.__result
 
 
-# testing
 if(__name__ == '__main__'):
     load_dotenv() 
     cookie = os.getenv("COOKIE") 
-
     comment: Comment = Comment(cookie)
-    # comment.excecute('C1ACfnvh4KE')
-    # comment.excecute('C1Ww1LChZhN')
-    data: dict = comment.excecute('Cm2cJmABD1p')
-    with open('test_data.json', 'w') as file:
-        file.write(dumps(data, indent=2, ensure_ascii=False))
+    # data: dict = comment.excecute('Cm2cJmABD1p')
