@@ -3,6 +3,7 @@ import csv
 import glob
 import shutil
 import requests 
+import random
 from requests import Session, Response
 from json import dumps
 from dotenv import load_dotenv
@@ -176,7 +177,7 @@ class Comment:
 
             if len(self.current_batch_data) >= self.batch_size:
                 self.__save_batch_to_csv()
-            sleep(0.5)
+            sleep(1)
 
         if (not 'next_min_id' in response): return True 
         self.__min_id = response['next_min_id'] 
